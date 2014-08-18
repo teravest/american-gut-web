@@ -26,7 +26,7 @@ class GoogleAPILimitExceeded(Exception):
     pass
 
 
-class NewAGDataAccess(object):
+class AGDataAccess(object):
     """
     Data Access implementation for all the American Gut web portal
     """
@@ -937,3 +937,32 @@ class NewAGDataAccess(object):
             return None
         else:
             return print_results[0].strip()
+
+    def get_user_for_kit(self, supplied_kit_id):
+        sql = ("select cast(AK.ag_login_id as varchar2(100)) from ag_kit AK "
+               "join ag_login AL on AK.ag_login_id = AL.ag_login_id "
+               "where AK.supplied_kit_id = '%s'" % supplied_kit_id)
+        con = self.getMetadataDatabaseConnection()
+        results = con.cursor().execute(sql).fetchone()
+        if results:
+            return results[0]
+        else:
+            raise RuntimeError("No user ID for kit %s" % supplied_kit_id)
+
+    def get_menu_items(self, supplied_kit_id):
+        """Returns information required to populate the menu of the website"""
+        ag_login_id = self.get_user_for_kit(supplied_kit_id)
+        info = self.getAGKitDetails(supplied_kit_id)
+
+        kit_verified = False
+        if info['kit_verified'] == 'y':
+            kit_verified = True
+
+        human_samples = {hs: self.getParticipantSamples(ag_login_id, hs)
+                         for hs in self.getHumanParticipants(ag_login_id)}
+        animal_samples = {ans: self.getParticipantSamples(ag_login_id, ans)
+                          for ans in self.getAnimalParticipants(ag_login_id)}
+        environmental_samples = self.getEnvironmentalSamples(ag_login_id)
+
+        return (human_samples, animal_samples, environmental_samples,
+                kit_verified)
